@@ -1,5 +1,5 @@
 mod enc_dec;
-mod ops;
+pub(crate) mod ops;
 
 pub type FheUint8 = enc_dec::FheUint8<Vec<u64>>;
 

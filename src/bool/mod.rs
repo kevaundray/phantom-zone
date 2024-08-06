@@ -111,12 +111,12 @@ mod impl_bool_frontend {
     }
 
     mod ops {
-        use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not};
-
+        use crate::shortint::ops::bit_mux;
         use crate::{
             utils::{Global, WithLocal},
             BooleanGates,
         };
+        use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not};
 
         use super::super::{BoolEvaluator, RuntimeServerKey};
 
@@ -201,6 +201,14 @@ mod impl_bool_frontend {
                     FheBool {
                         data: e.nand(self.data(), rhs.data(), key),
                     }
+                })
+            }
+
+            pub fn mux(&self, other: &FheBool, selector: &FheBool) -> Self {
+                BoolEvaluator::with_local_mut(|e| {
+                    let key = RuntimeServerKey::global();
+                    let out = bit_mux(e, selector.data().to_vec(), self.data(), other.data(), key);
+                    FheBool { data: out }
                 })
             }
 

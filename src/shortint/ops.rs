@@ -104,7 +104,7 @@ where
     return (neg_b, carry_last, carry_last_last);
 }
 
-pub(super) fn bit_mux<E: BooleanGates>(
+pub(crate) fn bit_mux<E: BooleanGates>(
     evaluator: &mut E,
     selector: E::Ciphertext,
     if_true: &E::Ciphertext,
@@ -120,7 +120,7 @@ pub(super) fn bit_mux<E: BooleanGates>(
     s_and_a
 }
 
-pub(super) fn arbitrary_bit_mux<E: BooleanGates>(
+pub(crate) fn arbitrary_bit_mux<E: BooleanGates>(
     evaluator: &mut E,
     selector: &E::Ciphertext,
     if_true: &[E::Ciphertext],
