@@ -84,7 +84,7 @@ pub fn collective_server_key_share<R, ModOp>(
     BoolParameters<u64>,
     InteractiveMultiPartyCrs<[u8; 32]>,
 > {
-    BoolEvaluator::with_local_mut(|e| {
+    BoolEvaluator::with_local(|e| {
         let server_key_share = e.gen_interactive_multi_party_server_key_share(
             user_id,
             total_users,
@@ -390,7 +390,7 @@ mod tests {
             ClientKey,
             SeededSinglePartyServerKey<Vec<Vec<u64>>, BoolParameters<u64>, [u8; 32]>,
         ) {
-            super::BoolEvaluator::with_local_mut(|e| {
+            super::BoolEvaluator::with_local(|e| {
                 let ck = e.client_key();
                 let sk = e.single_party_server_key(&ck);
 

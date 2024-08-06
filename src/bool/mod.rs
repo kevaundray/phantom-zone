@@ -21,48 +21,44 @@ pub type FheBool = impl_bool_frontend::FheBool<Vec<u64>>;
 
 pub(crate) trait BooleanGates {
     type Ciphertext: RowEntity;
-    type Key;
+    type Key: Sync;
 
-    fn and_inplace(&mut self, c0: &mut Self::Ciphertext, c1: &Self::Ciphertext, key: &Self::Key);
-    fn nand_inplace(&mut self, c0: &mut Self::Ciphertext, c1: &Self::Ciphertext, key: &Self::Key);
-    fn or_inplace(&mut self, c0: &mut Self::Ciphertext, c1: &Self::Ciphertext, key: &Self::Key);
-    fn nor_inplace(&mut self, c0: &mut Self::Ciphertext, c1: &Self::Ciphertext, key: &Self::Key);
-    fn xor_inplace(&mut self, c0: &mut Self::Ciphertext, c1: &Self::Ciphertext, key: &Self::Key);
-    fn xnor_inplace(&mut self, c0: &mut Self::Ciphertext, c1: &Self::Ciphertext, key: &Self::Key);
+    fn and_inplace(&self, c0: &mut Self::Ciphertext, c1: &Self::Ciphertext, key: &Self::Key);
+    fn nand_inplace(&self, c0: &mut Self::Ciphertext, c1: &Self::Ciphertext, key: &Self::Key);
+    fn or_inplace(&self, c0: &mut Self::Ciphertext, c1: &Self::Ciphertext, key: &Self::Key);
+    fn nor_inplace(&self, c0: &mut Self::Ciphertext, c1: &Self::Ciphertext, key: &Self::Key);
+    fn xor_inplace(&self, c0: &mut Self::Ciphertext, c1: &Self::Ciphertext, key: &Self::Key);
+    fn xnor_inplace(&self, c0: &mut Self::Ciphertext, c1: &Self::Ciphertext, key: &Self::Key);
     fn not_inplace(&self, c: &mut Self::Ciphertext);
 
     fn and(
-        &mut self,
+        &self,
         c0: &Self::Ciphertext,
         c1: &Self::Ciphertext,
         key: &Self::Key,
     ) -> Self::Ciphertext;
     fn nand(
-        &mut self,
+        &self,
         c0: &Self::Ciphertext,
         c1: &Self::Ciphertext,
         key: &Self::Key,
     ) -> Self::Ciphertext;
-    fn or(
-        &mut self,
-        c0: &Self::Ciphertext,
-        c1: &Self::Ciphertext,
-        key: &Self::Key,
-    ) -> Self::Ciphertext;
+    fn or(&self, c0: &Self::Ciphertext, c1: &Self::Ciphertext, key: &Self::Key)
+        -> Self::Ciphertext;
     fn nor(
-        &mut self,
+        &self,
         c0: &Self::Ciphertext,
         c1: &Self::Ciphertext,
         key: &Self::Key,
     ) -> Self::Ciphertext;
     fn xor(
-        &mut self,
+        &self,
         c0: &Self::Ciphertext,
         c1: &Self::Ciphertext,
         key: &Self::Key,
     ) -> Self::Ciphertext;
     fn xnor(
-        &mut self,
+        &self,
         c0: &Self::Ciphertext,
         c1: &Self::Ciphertext,
         key: &Self::Key,
@@ -82,7 +78,7 @@ mod impl_bool_frontend {
     }
 
     impl<C> FheBool<C> {
-        pub(crate) fn data(&self) -> &C {
+        pub fn data(&self) -> &C {
             &self.data
         }
 
@@ -125,7 +121,7 @@ mod impl_bool_frontend {
         impl BitAnd for &FheBool {
             type Output = FheBool;
             fn bitand(self, rhs: Self) -> Self::Output {
-                BoolEvaluator::with_local_mut(|e| {
+                BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
                     FheBool {
                         data: e.and(self.data(), rhs.data(), key),
@@ -136,17 +132,18 @@ mod impl_bool_frontend {
 
         impl BitAndAssign for FheBool {
             fn bitand_assign(&mut self, rhs: Self) {
-                BoolEvaluator::with_local_mut_mut(&mut |e| {
+                let result = BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
-                    e.and_inplace(&mut self.data_mut(), rhs.data(), key);
+                    e.and(&self.data(), rhs.data(), key)
                 });
+                *self.data_mut() = result;
             }
         }
 
         impl BitOr for &FheBool {
             type Output = FheBool;
             fn bitor(self, rhs: Self) -> Self::Output {
-                BoolEvaluator::with_local_mut(|e| {
+                BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
                     FheBool {
                         data: e.or(self.data(), rhs.data(), key),
@@ -157,17 +154,18 @@ mod impl_bool_frontend {
 
         impl BitOrAssign for FheBool {
             fn bitor_assign(&mut self, rhs: Self) {
-                BoolEvaluator::with_local_mut_mut(&mut |e| {
+                let result = BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
-                    e.or_inplace(&mut self.data_mut(), rhs.data(), key);
+                    e.or(&self.data(), rhs.data(), key)
                 });
+                *self.data_mut() = result;
             }
         }
 
         impl BitXor for &FheBool {
             type Output = FheBool;
             fn bitxor(self, rhs: Self) -> Self::Output {
-                BoolEvaluator::with_local_mut(|e| {
+                BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
                     FheBool {
                         data: e.xor(self.data(), rhs.data(), key),
@@ -178,10 +176,11 @@ mod impl_bool_frontend {
 
         impl BitXorAssign for FheBool {
             fn bitxor_assign(&mut self, rhs: Self) {
-                BoolEvaluator::with_local_mut_mut(&mut |e| {
+                let result = BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
-                    e.xor_inplace(&mut self.data_mut(), rhs.data(), key);
+                    e.xor(self.data(), rhs.data(), key)
                 });
+                *self.data_mut() = result;
             }
         }
 
@@ -196,7 +195,7 @@ mod impl_bool_frontend {
 
         impl FheBool {
             pub fn nand(&self, rhs: &Self) -> Self {
-                BoolEvaluator::with_local_mut(|e| {
+                BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
                     FheBool {
                         data: e.nand(self.data(), rhs.data(), key),
@@ -205,7 +204,7 @@ mod impl_bool_frontend {
             }
 
             pub fn xnor(&self, rhs: &Self) -> Self {
-                BoolEvaluator::with_local_mut(|e| {
+                BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
                     FheBool {
                         data: e.xnor(self.data(), rhs.data(), key),
@@ -214,7 +213,7 @@ mod impl_bool_frontend {
             }
 
             pub fn nor(&self, rhs: &Self) -> Self {
-                BoolEvaluator::with_local_mut(|e| {
+                BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
                     FheBool {
                         data: e.nor(self.data(), rhs.data(), key),

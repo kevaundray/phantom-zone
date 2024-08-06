@@ -2169,14 +2169,16 @@ where
         + ShoupMatrixFMA<M::R>,
     LweModOp: VectorOps<Element = M::MatElement> + ArithmeticOps<Element = M::MatElement>,
     NttOp: Ntt<Element = M::MatElement>,
-    Skey: PbsKey<AutoKey = <Skey as PbsKey>::RgswCt, LweKskKey = M>,
+    Skey: Sync + PbsKey<AutoKey = <Skey as PbsKey>::RgswCt, LweKskKey = M>,
     <Skey as PbsKey>::RgswCt: WithShoupRepr<M = M>,
 {
     type Ciphertext = M::R;
     type Key = Skey;
 
-    fn nand_inplace(&mut self, c0: &mut M::R, c1: &M::R, server_key: &Self::Key) {
+    fn nand_inplace(&self, c0: &mut M::R, c1: &M::R, server_key: &Self::Key) {
         self._add_and_shift_lwe_cts(c0, c1);
+
+        let mut scratch_memory = ScratchMemory::new(self.parameters());
 
         // PBS
         pbs(
@@ -2184,13 +2186,15 @@ where
             &self.nand_test_vec,
             c0,
             server_key,
-            &mut self.scratch_memory.lwe_vector,
-            &mut self.scratch_memory.decomposition_matrix,
+            &mut scratch_memory.lwe_vector,
+            &mut scratch_memory.decomposition_matrix,
         );
     }
 
-    fn and_inplace(&mut self, c0: &mut M::R, c1: &M::R, server_key: &Self::Key) {
+    fn and_inplace(&self, c0: &mut M::R, c1: &M::R, server_key: &Self::Key) {
         self._add_and_shift_lwe_cts(c0, c1);
+
+        let mut scratch_memory = ScratchMemory::new(self.parameters());
 
         // PBS
         pbs(
@@ -2198,13 +2202,15 @@ where
             &self.and_test_vec,
             c0,
             server_key,
-            &mut self.scratch_memory.lwe_vector,
-            &mut self.scratch_memory.decomposition_matrix,
+            &mut scratch_memory.lwe_vector,
+            &mut scratch_memory.decomposition_matrix,
         );
     }
 
-    fn or_inplace(&mut self, c0: &mut M::R, c1: &M::R, server_key: &Self::Key) {
+    fn or_inplace(&self, c0: &mut M::R, c1: &M::R, server_key: &Self::Key) {
         self._add_and_shift_lwe_cts(c0, c1);
+
+        let mut scratch_memory = ScratchMemory::new(self.parameters());
 
         // PBS
         pbs(
@@ -2212,13 +2218,15 @@ where
             &self.or_test_vec,
             c0,
             server_key,
-            &mut self.scratch_memory.lwe_vector,
-            &mut self.scratch_memory.decomposition_matrix,
+            &mut scratch_memory.lwe_vector,
+            &mut scratch_memory.decomposition_matrix,
         );
     }
 
-    fn nor_inplace(&mut self, c0: &mut M::R, c1: &M::R, server_key: &Self::Key) {
+    fn nor_inplace(&self, c0: &mut M::R, c1: &M::R, server_key: &Self::Key) {
         self._add_and_shift_lwe_cts(c0, c1);
+
+        let mut scratch_memory = ScratchMemory::new(self.parameters());
 
         // PBS
         pbs(
@@ -2226,27 +2234,31 @@ where
             &self.nor_test_vec,
             c0,
             server_key,
-            &mut self.scratch_memory.lwe_vector,
-            &mut self.scratch_memory.decomposition_matrix,
+            &mut scratch_memory.lwe_vector,
+            &mut scratch_memory.decomposition_matrix,
         )
     }
 
-    fn xor_inplace(&mut self, c0: &mut M::R, c1: &M::R, server_key: &Self::Key) {
+    fn xor_inplace(&self, c0: &mut M::R, c1: &M::R, server_key: &Self::Key) {
         self._subtract_double_lwe_cts(c0, c1);
 
         // PBS
+        let mut scratch_mem = ScratchMemory::new(self.parameters());
+
         pbs(
             &self.pbs_info,
             &self.xor_test_vec,
             c0,
             server_key,
-            &mut self.scratch_memory.lwe_vector,
-            &mut self.scratch_memory.decomposition_matrix,
+            &mut scratch_mem.lwe_vector,
+            &mut scratch_mem.decomposition_matrix,
         );
     }
 
-    fn xnor_inplace(&mut self, c0: &mut M::R, c1: &M::R, server_key: &Self::Key) {
+    fn xnor_inplace(&self, c0: &mut M::R, c1: &M::R, server_key: &Self::Key) {
         self._subtract_double_lwe_cts(c0, c1);
+
+        let mut scratch_memory = ScratchMemory::new(self.parameters());
 
         // PBS
         pbs(
@@ -2254,8 +2266,8 @@ where
             &self.xnor_test_vec,
             c0,
             server_key,
-            &mut self.scratch_memory.lwe_vector,
-            &mut self.scratch_memory.decomposition_matrix,
+            &mut scratch_memory.lwe_vector,
+            &mut scratch_memory.decomposition_matrix,
         );
     }
 
@@ -2265,7 +2277,7 @@ where
     }
 
     fn and(
-        &mut self,
+        &self,
         c0: &Self::Ciphertext,
         c1: &Self::Ciphertext,
         key: &Self::Key,
@@ -2276,7 +2288,7 @@ where
     }
 
     fn nand(
-        &mut self,
+        &self,
         c0: &Self::Ciphertext,
         c1: &Self::Ciphertext,
         key: &Self::Key,
@@ -2287,7 +2299,7 @@ where
     }
 
     fn or(
-        &mut self,
+        &self,
         c0: &Self::Ciphertext,
         c1: &Self::Ciphertext,
         key: &Self::Key,
@@ -2298,7 +2310,7 @@ where
     }
 
     fn nor(
-        &mut self,
+        &self,
         c0: &Self::Ciphertext,
         c1: &Self::Ciphertext,
         key: &Self::Key,
@@ -2309,7 +2321,7 @@ where
     }
 
     fn xnor(
-        &mut self,
+        &self,
         c0: &Self::Ciphertext,
         c1: &Self::Ciphertext,
         key: &Self::Key,
@@ -2320,7 +2332,7 @@ where
     }
 
     fn xor(
-        &mut self,
+        &self,
         c0: &Self::Ciphertext,
         c1: &Self::Ciphertext,
         key: &Self::Key,

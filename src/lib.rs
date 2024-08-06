@@ -19,15 +19,14 @@ pub use backend::{
 
 pub use bool::*;
 pub use ntt::{Ntt, NttBackendU64, NttInit};
+pub use shortint::SeededBatchedFheUint8;
 #[cfg(any(feature = "interactive_mp", feature = "non_interactive_mp"))]
 pub use shortint::{div_zero_error_flag, reset_error_flags, FheUint8};
-pub use shortint::SeededBatchedFheUint8;
-
 
 pub use decomposer::{Decomposer, DecomposerIter, DefaultDecomposer};
 
 pub trait Matrix: AsRef<[Self::R]> {
-    type MatElement;
+    type MatElement: Clone;
     type R: Row<Element = Self::MatElement>;
 
     /// (Rows, Cols)
@@ -97,7 +96,7 @@ pub trait RowEntity: Row {
     fn zeros(col: usize) -> Self;
 }
 
-impl<T> Matrix for Vec<Vec<T>> {
+impl<T: Clone> Matrix for Vec<Vec<T>> {
     type MatElement = T;
     type R = Vec<T>;
 
@@ -110,7 +109,7 @@ impl<T> Matrix for Vec<Vec<T>> {
     }
 }
 
-impl<T> Matrix for &[Vec<T>] {
+impl<T: Clone> Matrix for &[Vec<T>] {
     type MatElement = T;
     type R = Vec<T>;
 
@@ -123,7 +122,7 @@ impl<T> Matrix for &[Vec<T>] {
     }
 }
 
-impl<T> Matrix for &mut [Vec<T>] {
+impl<T: Clone> Matrix for &mut [Vec<T>] {
     type MatElement = T;
     type R = Vec<T>;
 
@@ -136,8 +135,8 @@ impl<T> Matrix for &mut [Vec<T>] {
     }
 }
 
-impl<T> MatrixMut for Vec<Vec<T>> {}
-impl<T> MatrixMut for &mut [Vec<T>] {}
+impl<T: Clone> MatrixMut for Vec<Vec<T>> {}
+impl<T: Clone> MatrixMut for &mut [Vec<T>] {}
 
 impl<T: Zero + Clone> MatrixEntity for Vec<Vec<T>> {
     fn zeros(row: usize, col: usize) -> Self {

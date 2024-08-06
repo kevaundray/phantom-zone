@@ -3,7 +3,7 @@ use itertools::{izip, Itertools};
 use crate::bool::BooleanGates;
 
 pub(super) fn half_adder<E: BooleanGates>(
-    evaluator: &mut E,
+    evaluator: &E,
     a: &mut E::Ciphertext,
     b: &E::Ciphertext,
     key: &E::Key,
@@ -14,7 +14,7 @@ pub(super) fn half_adder<E: BooleanGates>(
 }
 
 pub(super) fn full_adder_plain_carry_in<E: BooleanGates>(
-    evaluator: &mut E,
+    evaluator: &E,
     a: &mut E::Ciphertext,
     b: &E::Ciphertext,
     carry_in: bool,
@@ -44,7 +44,7 @@ pub(super) fn full_adder_plain_carry_in<E: BooleanGates>(
 }
 
 pub(super) fn full_adder<E: BooleanGates>(
-    evaluator: &mut E,
+    evaluator: &E,
     a: &mut E::Ciphertext,
     b: &E::Ciphertext,
     carry_in: &E::Ciphertext,
@@ -58,8 +58,8 @@ pub(super) fn full_adder<E: BooleanGates>(
     a_and_b
 }
 
-pub(super) fn arbitrary_bit_adder<E: BooleanGates>(
-    evaluator: &mut E,
+pub(super) fn arbitrary_bit_adder2<E: BooleanGates>(
+    evaluator: &E,
     a: &mut [E::Ciphertext],
     b: &[E::Ciphertext],
     carry_in: bool,
@@ -90,17 +90,18 @@ where
     (carry_last, carry_last_last)
 }
 
-pub(super) fn arbitrary_bit_subtractor<E: BooleanGates>(
-    evaluator: &mut E,
+pub(super) fn arbitrary_bit_subtractor<E: BooleanGates + Sync + Send>(
+    evaluator: &E,
     a: &[E::Ciphertext],
     b: &[E::Ciphertext],
     key: &E::Key,
 ) -> (Vec<E::Ciphertext>, E::Ciphertext, E::Ciphertext)
 where
-    E::Ciphertext: Clone,
+    E::Ciphertext: Clone + Sync + Send,
 {
-    let mut neg_b: Vec<E::Ciphertext> = b.iter().map(|v| evaluator.not(v)).collect();
-    let (carry_last, carry_last_last) = arbitrary_bit_adder(evaluator, &mut neg_b, &a, true, key);
+    let neg_b: Vec<E::Ciphertext> = b.iter().map(|v| evaluator.not(v)).collect();
+    let (neg_b, carry_last, carry_last_last) =
+        arbitrary_bit_adder(evaluator, &neg_b, &a, true, key);
     return (neg_b, carry_last, carry_last_last);
 }
 
@@ -121,7 +122,7 @@ pub(super) fn bit_mux<E: BooleanGates>(
 }
 
 pub(super) fn arbitrary_bit_mux<E: BooleanGates>(
-    evaluator: &mut E,
+    evaluator: &E,
     selector: &E::Ciphertext,
     if_true: &[E::Ciphertext],
     if_false: &[E::Ciphertext],
@@ -134,14 +135,14 @@ pub(super) fn arbitrary_bit_mux<E: BooleanGates>(
         .map(|(a, b)| {
             let mut s_and_a = evaluator.and(&selector, a, key);
             let s_and_b = evaluator.and(&not_selector, b, key);
-            evaluator.or_inplace(&mut s_and_a, &s_and_b, key);
+            evaluator.or(&mut s_and_a, &s_and_b, key);
             s_and_a
         })
         .collect()
 }
 
 pub(super) fn eight_bit_mul<E: BooleanGates>(
-    evaluator: &mut E,
+    evaluator: &E,
     a: &[E::Ciphertext],
     b: &[E::Ciphertext],
     key: &E::Key,
@@ -187,7 +188,7 @@ pub(super) fn eight_bit_mul<E: BooleanGates>(
 }
 
 pub(super) fn arbitrary_bit_division_for_quotient_and_rem<E: BooleanGates>(
-    evaluator: &mut E,
+    evaluator: &E,
     a: &[E::Ciphertext],
     b: &[E::Ciphertext],
     key: &E::Key,
@@ -259,7 +260,7 @@ where
 }
 
 pub(super) fn is_zero<E: BooleanGates>(
-    evaluator: &mut E,
+    evaluator: &E,
     a: &[E::Ciphertext],
     key: &E::Key,
 ) -> E::Ciphertext {
@@ -272,7 +273,7 @@ pub(super) fn is_zero<E: BooleanGates>(
 }
 
 pub(super) fn arbitrary_bit_equality<E: BooleanGates>(
-    evaluator: &mut E,
+    evaluator: &E,
     a: &[E::Ciphertext],
     b: &[E::Ciphertext],
     key: &E::Key,
@@ -290,7 +291,7 @@ pub(super) fn arbitrary_bit_equality<E: BooleanGates>(
 /// separated because comparator subroutine for signed and unsgind integers
 /// differs only for 1st MSB and is common second MSB onwards
 fn _comparator_handler_from_second_msb<E: BooleanGates>(
-    evaluator: &mut E,
+    evaluator: &E,
     a: &[E::Ciphertext],
     b: &[E::Ciphertext],
     mut comp: E::Ciphertext,
@@ -339,7 +340,7 @@ pub(super) fn arbitrary_signed_bit_comparator<E: BooleanGates>(
 }
 
 pub(super) fn arbitrary_bit_comparator<E: BooleanGates>(
-    evaluator: &mut E,
+    evaluator: &E,
     a: &[E::Ciphertext],
     b: &[E::Ciphertext],
     key: &E::Key,
@@ -353,4 +354,95 @@ pub(super) fn arbitrary_bit_comparator<E: BooleanGates>(
     let casc = evaluator.xnor(&a[n - 1], &b[n - 1], key);
 
     return _comparator_handler_from_second_msb(evaluator, a, b, comp, casc, key);
+}
+
+use rayon::prelude::*;
+use std::sync::Arc;
+
+pub(super) fn arbitrary_bit_adder<E: BooleanGates + Sync + Send>(
+    evaluator: &E,
+    a: &[E::Ciphertext],
+    b: &[E::Ciphertext],
+    carry_in: bool,
+    key: &E::Key,
+) -> (Vec<E::Ciphertext>, E::Ciphertext, E::Ciphertext)
+where
+    E::Ciphertext: Clone + Sync + Send,
+{
+    assert!(a.len() == b.len());
+    let n = a.len();
+
+    // Step 1: Compute initial propagate and generate bits
+    let (p, g): (Vec<E::Ciphertext>, Vec<E::Ciphertext>) = (0..n)
+        .into_par_iter()
+        .map(|i| {
+            let p_i = evaluator.xor(&a[i], &b[i], key);
+            let g_i = evaluator.and(&a[i], &b[i], key);
+            (p_i, g_i)
+        })
+        .unzip();
+
+    // TODO: Hack to get false and true
+    let false_ct = evaluator.xor(&a[0], &a[0], key);
+    let true_ct = evaluator.not(&false_ct);
+
+    // Step 2: Brent-Kung parallel prefix computation
+    let mut level = 1;
+    let mut p = p;
+    let mut g = g;
+    while (1 << level) <= n {
+        let step = 1 << level;
+        let (new_p, new_g): (Vec<_>, Vec<_>) = (step - 1..n)
+            .into_par_iter()
+            .step_by(step)
+            .map(|i| {
+                let j = i - (step / 2);
+                let mut new_g = g[i].clone();
+                let mut new_p = p[i].clone();
+                let tmp = evaluator.and(&p[i], &g[j], key);
+                evaluator.or_inplace(&mut new_g, &tmp, key);
+                evaluator.and_inplace(&mut new_p, &p[j], key);
+                (new_p, new_g)
+            })
+            .unzip();
+
+        for (idx, (new_p_i, new_g_i)) in new_p.into_iter().zip(new_g).enumerate() {
+            let i = step - 1 + idx * step;
+            p[i] = new_p_i;
+            g[i] = new_g_i;
+        }
+        level += 1;
+    }
+
+    // Step 3: Compute final sum and carries
+    let mut carries = vec![false_ct; n];
+    if carry_in {
+        carries[0] = true_ct.clone();
+    }
+
+    carries = (0..n)
+        .into_par_iter()
+        .map(|i| {
+            if i == 0 {
+                carries[0].clone()
+            } else {
+                let mut carry = g[i - 1].clone();
+                let tmp = evaluator.and(&p[i - 1], &carries[0], key);
+                evaluator.or_inplace(&mut carry, &tmp, key);
+                carry
+            }
+        })
+        .collect();
+
+    // Compute final sum
+    let a: Vec<_> = a
+        .par_iter()
+        .enumerate()
+        .map(|(i, a_i)| {
+            let a_i = evaluator.xor(a_i, &b[i], key);
+            evaluator.xor(&a_i, &carries[i], key)
+        })
+        .collect();
+
+    (a, carries[n - 1].clone(), carries[n - 2].clone())
 }

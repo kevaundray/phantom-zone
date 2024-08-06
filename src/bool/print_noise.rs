@@ -536,7 +536,7 @@ mod tests {
         for _ in 0..K {
             // let now = std::time::Instant::now();
             let ct_out =
-                BoolEvaluator::with_local_mut(|e| e.xor(&ct0, &ct1, RuntimeServerKey::global()));
+                BoolEvaluator::with_local(|e| e.xor(&ct0, &ct1, RuntimeServerKey::global()));
             // println!("Time: {:?}", now.elapsed());
 
             let m_expected = m0 ^ m1;
@@ -674,7 +674,7 @@ mod tests {
         for _ in 0..K {
             // let now = std::time::Instant::now();
             let ct_out =
-                BoolEvaluator::with_local_mut(|e| e.xor(&ct0, &ct1, RuntimeServerKey::global()));
+                BoolEvaluator::with_local(|e| e.xor(&ct0, &ct1, RuntimeServerKey::global()));
             // println!("Time: {:?}", now.elapsed());
 
             let decryption_shares = cks

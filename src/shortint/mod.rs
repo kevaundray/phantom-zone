@@ -42,7 +42,7 @@ mod frontend {
     /// denominator set to 0.
     fn set_div_by_zero_flag(denominator: &FheUint8) {
         {
-            BoolEvaluator::with_local_mut(|e| {
+            BoolEvaluator::with_local(|e| {
                 let key = RuntimeServerKey::global();
                 let is_zero = is_zero(e, denominator.data(), key);
                 DIV_ZERO_ERROR.with_borrow_mut(|before_is_zero| {
@@ -63,10 +63,15 @@ mod frontend {
 
         impl AddAssign<&FheUint8> for FheUint8 {
             fn add_assign(&mut self, rhs: &FheUint8) {
-                BoolEvaluator::with_local_mut_mut(&mut |e| {
+                let (result, _, _) = BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
-                    arbitrary_bit_adder(e, self.data_mut(), rhs.data(), false, key);
+                    arbitrary_bit_adder(e, self.data(), rhs.data(), false, key)
                 });
+
+                self.data_mut()
+                    .iter_mut()
+                    .zip(result)
+                    .for_each(|(d, res)| *d = res);
             }
         }
 
@@ -82,7 +87,7 @@ mod frontend {
         impl Sub<&FheUint8> for &FheUint8 {
             type Output = FheUint8;
             fn sub(self, rhs: &FheUint8) -> Self::Output {
-                BoolEvaluator::with_local_mut(|e| {
+                BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
                     let (out, _, _) = arbitrary_bit_subtractor(e, self.data(), rhs.data(), key);
                     FheUint8 { data: out }
@@ -93,7 +98,7 @@ mod frontend {
         impl Mul<&FheUint8> for &FheUint8 {
             type Output = FheUint8;
             fn mul(self, rhs: &FheUint8) -> Self::Output {
-                BoolEvaluator::with_local_mut(|e| {
+                BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
                     let out = eight_bit_mul(e, self.data(), rhs.data(), key);
                     FheUint8 { data: out }
@@ -107,7 +112,7 @@ mod frontend {
                 // set div by 0 error flag
                 set_div_by_zero_flag(rhs);
 
-                BoolEvaluator::with_local_mut(|e| {
+                BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
 
                     let (quotient, _) = arbitrary_bit_division_for_quotient_and_rem(
@@ -124,7 +129,7 @@ mod frontend {
         impl Rem<&FheUint8> for &FheUint8 {
             type Output = FheUint8;
             fn rem(self, rhs: &FheUint8) -> Self::Output {
-                BoolEvaluator::with_local_mut(|e| {
+                BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
                     let (_, remainder) = arbitrary_bit_division_for_quotient_and_rem(
                         e,
@@ -143,12 +148,18 @@ mod frontend {
             /// `overflow` is set to `True` if `Self += rhs` overflowed,
             /// otherwise it is set to `False`
             pub fn overflowing_add_assign(&mut self, rhs: &FheUint8) -> FheBool {
-                BoolEvaluator::with_local_mut_mut(&mut |e| {
+                let (result, overflow) = BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
-                    let (overflow, _) =
-                        arbitrary_bit_adder(e, self.data_mut(), rhs.data(), false, key);
-                    FheBool { data: overflow }
-                })
+                    let (result, overflow, _) =
+                        arbitrary_bit_adder(e, self.data(), rhs.data(), false, key);
+                    (result, FheBool { data: overflow })
+                });
+
+                self.data_mut()
+                    .iter_mut()
+                    .zip(result)
+                    .for_each(|(d, res)| *d = res);
+                overflow
             }
 
             /// Returns (Self + rhs, overflow).
@@ -156,13 +167,14 @@ mod frontend {
             /// `overflow` is set to `True` if `Self + rhs` overflowed,
             /// otherwise it is set to `False`
             pub fn overflowing_add(self, rhs: &FheUint8) -> (FheUint8, FheBool) {
-                BoolEvaluator::with_local_mut(|e| {
-                    let mut lhs = self.clone();
+                let (res, overflow) = BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
-                    let (overflow, _) =
-                        arbitrary_bit_adder(e, lhs.data_mut(), rhs.data(), false, key);
-                    (lhs, FheBool { data: overflow })
-                })
+                    let (result, overflow, _) =
+                        arbitrary_bit_adder(e, self.data(), rhs.data(), false, key);
+                    (result, FheBool { data: overflow })
+                });
+
+                (FheUint8 { data: res }, overflow)
             }
 
             /// Returns (Self - rhs, overflow).
@@ -170,7 +182,7 @@ mod frontend {
             /// `overflow` is set to `True` if `Self - rhs` overflowed,
             /// otherwise it is set to `False`
             pub fn overflowing_sub(&self, rhs: &FheUint8) -> (FheUint8, FheBool) {
-                BoolEvaluator::with_local_mut(|e| {
+                BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
                     let (out, mut overflow, _) =
                         arbitrary_bit_subtractor(e, self.data(), rhs.data(), key);
@@ -189,7 +201,7 @@ mod frontend {
                 // set div by 0 error flag
                 set_div_by_zero_flag(rhs);
 
-                BoolEvaluator::with_local_mut(|e| {
+                BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
 
                     let (quotient, remainder) = arbitrary_bit_division_for_quotient_and_rem(
@@ -214,7 +226,7 @@ mod frontend {
         impl FheUint8 {
             /// Returns `FheBool` indicating `Self == other`
             pub fn eq(&self, other: &FheUint8) -> FheBool {
-                BoolEvaluator::with_local_mut(|e| {
+                BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
                     let out = arbitrary_bit_equality(e, self.data(), other.data(), key);
                     FheBool { data: out }
@@ -223,7 +235,7 @@ mod frontend {
 
             /// Returns `FheBool` indicating `Self != other`
             pub fn neq(&self, other: &FheUint8) -> FheBool {
-                BoolEvaluator::with_local_mut(|e| {
+                BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
                     let mut is_equal = arbitrary_bit_equality(e, self.data(), other.data(), key);
                     e.not_inplace(&mut is_equal);
@@ -233,7 +245,7 @@ mod frontend {
 
             /// Returns `FheBool` indicating `Self < other`
             pub fn lt(&self, other: &FheUint8) -> FheBool {
-                BoolEvaluator::with_local_mut(|e| {
+                BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
                     let out = arbitrary_bit_comparator(e, other.data(), self.data(), key);
                     FheBool { data: out }
@@ -242,7 +254,7 @@ mod frontend {
 
             /// Returns `FheBool` indicating `Self > other`
             pub fn gt(&self, other: &FheUint8) -> FheBool {
-                BoolEvaluator::with_local_mut(|e| {
+                BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
                     let out = arbitrary_bit_comparator(e, self.data(), other.data(), key);
                     FheBool { data: out }
@@ -251,7 +263,7 @@ mod frontend {
 
             /// Returns `FheBool` indicating `Self <= other`
             pub fn le(&self, other: &FheUint8) -> FheBool {
-                BoolEvaluator::with_local_mut(|e| {
+                BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
                     let mut a_greater_b =
                         arbitrary_bit_comparator(e, self.data(), other.data(), key);
@@ -262,7 +274,7 @@ mod frontend {
 
             /// Returns `FheBool` indicating `Self >= other`
             pub fn ge(&self, other: &FheUint8) -> FheBool {
-                BoolEvaluator::with_local_mut(|e| {
+                BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
                     let mut a_less_b = arbitrary_bit_comparator(e, other.data(), self.data(), key);
                     e.not_inplace(&mut a_less_b);
@@ -272,7 +284,7 @@ mod frontend {
 
             /// Returns `Self` if `selector = True` else returns `other`
             pub fn mux(&self, other: &FheUint8, selector: &FheBool) -> FheUint8 {
-                BoolEvaluator::with_local_mut(|e| {
+                BoolEvaluator::with_local(|e| {
                     let key = RuntimeServerKey::global();
                     let out = arbitrary_bit_mux(e, selector.data(), self.data(), other.data(), key);
                     FheUint8 { data: out }
